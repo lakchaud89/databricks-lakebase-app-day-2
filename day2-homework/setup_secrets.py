@@ -29,17 +29,3 @@ w.secrets.put_acl(
     principal="users",
     permission=workspace.AclPermission.READ,
 )
-
-# Reuses the same "massive" scope/key as the class reference app -- only
-# needed if you also want /news/sync and /search/vector to work in this copy.
-# w.secrets.create_scope(scope="massive")
-# w.secrets.put_secret(
-#     scope="massive",
-#     key="api-key",
-#     string_value=getpass.getpass("Paste your Massive API key: "),
-# )
-# w.secrets.put_acl(
-#     scope="massive",
-#     principal="users",
-#     permission=workspace.AclPermission.READ,
-# )

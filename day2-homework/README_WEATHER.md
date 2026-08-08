@@ -1,9 +1,13 @@
 # Day 2 Homework: Weather Intelligence — Unstructured Data → Lakebase Vector Search → REST API
 
-This folder is a **fully self-contained copy** of the class reference app (`app.py`, `lakebase.py`,
-`massive_client.py`, `templates/index.html`, `sql/`, `notebooks/`) with a parallel harvest →
-vectorize → retrieve pipeline added for weather data, mirroring the existing ticker-news pipeline.
-It deploys as its **own Databricks App**, independent of the class reference app at the repo root.
+This folder started as a self-contained copy of the class reference app, but the Massive-API
+-dependent pieces (`/sync`, `/news/sync`, `/watchlist`, `/search/vector`, `massive_client.py`)
+have been stripped out -- this app has no Massive API dependency at all. What's left is a
+standalone weather harvest → vectorize → retrieve pipeline (`app.py`, `lakebase.py`,
+`weather_client.py`, `templates/index.html`), deployed as its **own Databricks App**, independent
+of the class reference app at the repo root. `sql/01`-`04` and
+`notebooks/ingest_ticker_news_embeddings.py` are left in place only as reference material from the
+original copy -- they're unused by this app and safe to delete.
 
 ## Data source: National Weather Service API (`api.weather.gov`)
 

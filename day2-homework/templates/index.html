@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Massive Stock Watchlist + Weather Search</title>
+  <title>Weather Vector Search</title>
   <style>
     :root {
       --bg: #f4f6fb;
@@ -12,8 +12,6 @@
       --muted: #6b7280;
       --accent: #4f46e5;
       --accent-hover: #4338ca;
-      --danger: #dc2626;
-      --danger-hover: #b91c1c;
       --radius: 10px;
     }
 
@@ -89,7 +87,7 @@
     button:hover { background: var(--accent-hover); }
     button:active { transform: translateY(1px); }
 
-    #result {
+    #sync-result {
       margin-top: 16px;
       white-space: pre-wrap;
       background: #f6f6f6;
@@ -99,46 +97,8 @@
       font-size: 13px;
       color: var(--muted);
     }
-    #result:empty { display: none; }
+    #sync-result:empty { display: none; }
 
-    table {
-      width: 100%;
-      margin-top: 0;
-      border-collapse: collapse;
-    }
-    th, td {
-      text-align: left;
-      padding: 10px 8px;
-      border-bottom: 1px solid var(--border);
-      font-size: 14px;
-    }
-    th {
-      font-size: 12px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      font-weight: 600;
-    }
-    tbody tr:hover { background: #fafbfe; }
-    tbody tr:last-child td { border-bottom: none; }
-
-    .empty-row td {
-      color: var(--muted);
-      text-align: center;
-      padding: 20px 8px;
-    }
-
-    .delete-btn {
-      margin-top: 0;
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      background: transparent;
-      color: var(--danger);
-      border: 1px solid var(--danger);
-    }
-    .delete-btn:hover { background: var(--danger); color: #fff; }
-    .delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .search-result {
       margin-top: 12px;
       padding: 14px;
@@ -209,24 +169,24 @@
   </style>
 </head>
 <body>
-  <h1>Stock Watchlist</h1>
-  <p class="hint">Search news, search weather, manage your watchlist, and track stock prices.</p>
+  <h1>🌦️ Weather Vector Search</h1>
+  <p class="hint">Sync alerts + forecasts for a location, then search them by meaning.</p>
 
   <div class="card">
-    <h2 style="margin-top: 0; font-size: 18px; font-weight: 600;">🔍 Search News</h2>
-    <p class="hint" style="margin-top: 8px;">Enter any question or topic to find the most relevant news articles and content chunks.</p>
+    <h2 style="margin-top: 0; font-size: 18px; font-weight: 600;">Sync locations</h2>
+    <p class="hint" style="margin-top: 8px;">Comma-separated "City, ST" locations, e.g. "Chicago, IL, Austin, TX" is read as two locations split on the second comma of each pair -- for multiple locations, separate with a semicolon instead.</p>
 
-    <form id="search-form">
-      <label for="search-query">Your question or search query</label>
-      <textarea id="search-query" name="query" placeholder="What are the latest developments in AI technology?" required></textarea>
-      <button type="submit">Search</button>
+    <form id="sync-form">
+      <label for="locations">Locations (semicolon-separated)</label>
+      <input type="text" id="locations" name="locations" placeholder="Sacramento, CA;Chicago, IL">
+      <button type="submit">Sync weather</button>
     </form>
 
-    <div id="search-result"></div>
+    <div id="sync-result"></div>
   </div>
 
   <div class="card">
-    <h2 style="margin-top: 0; font-size: 18px; font-weight: 600;">🌦️ Search Weather</h2>
+    <h2 style="margin-top: 0; font-size: 18px; font-weight: 600;">Search weather</h2>
     <p class="hint" style="margin-top: 8px;">Search synced weather alerts and forecasts by meaning, e.g. "flash flood risk this weekend".</p>
 
     <form id="weather-search-form">
@@ -238,190 +198,36 @@
     <div id="weather-search-result"></div>
   </div>
 
-  <div class="card">
-    <form id="stock-form">
-      <label for="symbol">Ticker symbol</label>
-      <input type="text" id="symbol" name="symbol" placeholder="AAPL" required>
-      <button type="submit">Add to watchlist</button>
-    </form>
-
-    <div id="result"></div>
-  </div>
-
-  <div class="card">
-    <table id="watchlist-table">
-      <thead>
-        <tr>
-          <th>Symbol</th>
-          <th>Email</th>
-          <th>Latest price</th>
-          <th>Updated</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="watchlist-body"></tbody>
-    </table>
-  </div>
-
   <script>
-    const form = document.getElementById("stock-form");
-    const resultEl = document.getElementById("result");
-    const watchlistBody = document.getElementById("watchlist-body");
+    const syncForm = document.getElementById("sync-form");
+    const syncResultEl = document.getElementById("sync-result");
 
-    async function loadWatchlist() {
-      try {
-        const resp = await fetch("/watchlist");
-        const data = await resp.json();
-        if (!resp.ok) {
-          resultEl.textContent = "Error loading watchlist: " + (data.error || resp.statusText);
-          return;
-        }
-        watchlistBody.innerHTML = "";
-
-        if (!data.length) {
-          const emptyTr = document.createElement("tr");
-          emptyTr.className = "empty-row";
-          emptyTr.innerHTML = `<td colspan="5">Your watchlist is empty. Add a ticker above to get started.</td>`;
-          watchlistBody.appendChild(emptyTr);
-          return;
-        }
-
-        data.forEach((row) => {
-          const tr = document.createElement("tr");
-          const price = row.latest_price !== null && row.latest_price !== undefined
-            ? Number(row.latest_price).toFixed(2)
-            : "-";
-          const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "-";
-          tr.innerHTML = `
-            <td>${row.symbol}</td>
-            <td>${row.email || "-"}</td>
-            <td>${price}</td>
-            <td>${updated}</td>
-            <td><button type="button" class="delete-btn" data-symbol="${row.symbol}">Remove</button></td>
-          `;
-          watchlistBody.appendChild(tr);
-        });
-      } catch (err) {
-        resultEl.textContent = "Failed to load watchlist: " + err;
-      }
-    }
-
-    form.addEventListener("submit", async (e) => {
+    syncForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const symbol = document.getElementById("symbol").value;
-      resultEl.textContent = "Adding to watchlist...";
+      const raw = document.getElementById("locations").value.trim();
+      const locations = raw ? raw.split(";").map((l) => l.trim()).filter(Boolean) : undefined;
+      syncResultEl.textContent = "Syncing...";
 
       try {
-        const resp = await fetch("/watchlist", {
+        const resp = await fetch("/weather/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ symbol }),
+          body: JSON.stringify(locations ? { locations } : {}),
         });
         const data = await resp.json();
         if (!resp.ok) {
-          resultEl.textContent = "Error: " + (data.error || resp.statusText);
+          syncResultEl.textContent = "Error: " + (data.error || resp.statusText);
           return;
         }
-        resultEl.textContent = "Added " + data.symbol + " at price " + data.latest_price;
-        document.getElementById("symbol").value = "";
-        loadWatchlist();
+        syncResultEl.textContent = `Synced ${data.synced} documents for: ${data.locations.join(", ")}`;
       } catch (err) {
-        resultEl.textContent = "Request failed: " + err;
+        syncResultEl.textContent = "Request failed: " + err;
       }
     });
 
-    watchlistBody.addEventListener("click", async (e) => {
-      const btn = e.target.closest(".delete-btn");
-      if (!btn) return;
-
-      const symbol = btn.dataset.symbol;
-      btn.disabled = true;
-      resultEl.textContent = "Removing " + symbol + "...";
-
-      try {
-        const resp = await fetch(`/watchlist/${encodeURIComponent(symbol)}`, {
-          method: "DELETE",
-        });
-        const data = await resp.json();
-        if (!resp.ok) {
-          resultEl.textContent = "Error: " + (data.error || resp.statusText);
-          btn.disabled = false;
-          return;
-        }
-        resultEl.textContent = "Removed " + data.symbol + " from your watchlist.";
-        loadWatchlist();
-      } catch (err) {
-        resultEl.textContent = "Request failed: " + err;
-        btn.disabled = false;
-      }
-    });
-
-    loadWatchlist();
-
-    // News vector search. NOTE: this listener is registered exactly ONCE,
-    // at top level. An earlier version of this file pasted this same block
-    // three times, nested inside the two handlers above -- only the
-    // top-level copy ever reliably attached, and the nested copies added a
-    // duplicate listener (and a duplicate outgoing request) on every
-    // unrelated watchlist add/remove. Keep this as the only copy.
-    const searchForm = document.getElementById("search-form");
-    const searchResultEl = document.getElementById("search-result");
-
-    searchForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const query = document.getElementById("search-query").value;
-      searchResultEl.innerHTML = "<div class='no-results'>Searching...</div>";
-
-      try {
-        const resp = await fetch("/search/vector", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query, top_k: 5 }),
-        });
-        const data = await resp.json();
-
-        if (!resp.ok) {
-          searchResultEl.innerHTML = `<div class='no-results'>Error: ${data.error || resp.statusText}</div>`;
-          return;
-        }
-
-        if (!data.results || data.results.length === 0) {
-          searchResultEl.innerHTML = "<div class='no-results'>No results found. Try a different query.</div>";
-          return;
-        }
-
-        let html = "";
-        data.results.forEach((result, idx) => {
-          const similarity = (result.similarity * 100).toFixed(1);
-          const publishedDate = result.published_utc
-            ? new Date(result.published_utc).toLocaleDateString()
-            : "Unknown date";
-          const articleUrl = result.article_url || "#";
-          const sentiment = result.sentiment ? `| Sentiment: ${result.sentiment}` : "";
-
-          html += `
-            <div class="search-result">
-              <div class="search-result-title">
-                ${idx + 1}. ${result.title || "Untitled"}
-                <span class="similarity-badge">${similarity}% match</span>
-              </div>
-              <div class="search-result-meta">
-                Ticker: ${result.ticker || "N/A"} | Published: ${publishedDate} ${sentiment}
-                ${articleUrl !== "#" ? ` | <a href="${articleUrl}" target="_blank" style="color: var(--accent);">Read full article →</a>` : ""}
-              </div>
-              <div class="search-result-text">${result.chunk_text || "No content available"}</div>
-            </div>
-          `;
-        });
-
-        searchResultEl.innerHTML = html;
-      } catch (err) {
-        searchResultEl.innerHTML = `<div class='no-results'>Request failed: ${err}</div>`;
-      }
-    });
-
-    // Weather vector search -- same shape as the news search above, one
-    // top-level listener, posts to /weather/search.
+    // Weather vector search. One top-level listener only -- do not paste
+    // this block into other handlers (see the class reference app for why
+    // that's a bug, not a feature).
     const weatherSearchForm = document.getElementById("weather-search-form");
     const weatherSearchResultEl = document.getElementById("weather-search-result");
 
@@ -444,7 +250,7 @@
         }
 
         if (!data.results || data.results.length === 0) {
-          weatherSearchResultEl.innerHTML = "<div class='no-results'>No results found. Try /weather/sync first, or a different query.</div>";
+          weatherSearchResultEl.innerHTML = "<div class='no-results'>No results found. Try syncing a location first, or a different query.</div>";
           return;
         }
 
