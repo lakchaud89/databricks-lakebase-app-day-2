@@ -9,6 +9,16 @@ of the class reference app at the repo root. `sql/01`-`04` and
 `notebooks/ingest_ticker_news_embeddings.py` are left in place only as reference material from the
 original copy -- they're unused by this app and safe to delete.
 
+## Assignment deliverables checklist
+
+| Deliverable | Where |
+|---|---|
+| `weather_client.py` — NWS API client | [`weather_client.py`](./weather_client.py) |
+| `app.py` with `POST /weather/sync` + `POST /weather/search` | [`app.py`](./app.py) |
+| DDL/migration for `weather_documents` + `weather_embeddings` | [`sql/05_setup_weather_documents_table.sql`](./sql/05_setup_weather_documents_table.sql), [`sql/06_setup_weather_embeddings_table.sql`](./sql/06_setup_weather_embeddings_table.sql) — mirrored by `ensure_weather_documents_table()` / `ensure_weather_embeddings_table()` in `app.py` (not in `lakebase.py` itself, which stays a generic, table-agnostic connection helper) |
+| psycopg2-based embedding ingestion script | [`notebooks/ingest_weather_embeddings.py`](./notebooks/ingest_weather_embeddings.py) |
+| This README | you're reading it |
+
 ## Data source: National Weather Service API (`api.weather.gov`)
 
 Chosen per the assignment's recommendation:
@@ -51,6 +61,15 @@ application and a contact method — generic/default `User-Agent`s get throttled
 
 Uses the **same embedding model** as the ticker-news pipeline (384-dim), so both pipelines stay
 queryable with the same pgvector distance-operator conventions (`<=>`, cosine).
+
+**Note on the insert cast**: the assignment suggests casting embeddings with `%s::vector` directly
+on `INSERT`. `notebooks/ingest_weather_embeddings.py` instead casts to `%s::double precision[]`
+and relies on pgvector's `ASSIGNMENT` cast into the `vector(384)` column (with a defensive
+`UPDATE ... SET embedding = embedding::vector` immediately after, as a no-op safety net) — this is
+the same pattern the class reference ticker-news notebook uses, and it's the one demonstrably
+proven to work against this specific Lakebase instance (see `sql/04_cast_arrays_to_vectors.sql`,
+which exists in the original project *because* a direct inline `%s::vector` cast wasn't reliable
+here). Functionally equivalent end state (a proper `vector` column), different path to get there.
 
 ## Chunking parameters
 
