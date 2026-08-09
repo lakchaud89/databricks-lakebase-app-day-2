@@ -22,6 +22,7 @@ app's Lakebase secret scope drift out of sync in an earlier version of this
 project, so every script in this repo goes through the one shared helper.
 """
 
+
 import os
 from datetime import datetime, timezone
 
@@ -29,6 +30,9 @@ import psycopg2.extras
 
 import lakebase
 
+# Table names without schema prefix - let Postgres use search_path to find them
+# (The tables were created without schema qualification, so they live in whatever
+# schema was active at creation time, which Postgres will find via search_path)
 WEATHER_TABLE_NAME = os.environ.get("WEATHER_TABLE_NAME", "weather_documents")
 WEATHER_EMBEDDINGS_TABLE_NAME = os.environ.get("WEATHER_EMBEDDINGS_TABLE_NAME", "weather_embeddings")
 EMBEDDING_MODEL_NAME = os.environ.get("EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
@@ -57,11 +61,11 @@ def ensure_weather_embeddings_table() -> None:
         """
     )
     lakebase.run_write(
-        f"CREATE INDEX IF NOT EXISTS idx_{WEATHER_EMBEDDINGS_TABLE_NAME}_embedding "
+        f"CREATE INDEX IF NOT EXISTS idx_weather_embeddings_embedding "
         f"ON {WEATHER_EMBEDDINGS_TABLE_NAME} USING hnsw (embedding vector_cosine_ops)"
     )
     lakebase.run_write(
-        f"CREATE INDEX IF NOT EXISTS idx_{WEATHER_EMBEDDINGS_TABLE_NAME}_document_id "
+        f"CREATE INDEX IF NOT EXISTS idx_weather_embeddings_document_id "
         f"ON {WEATHER_EMBEDDINGS_TABLE_NAME} (document_id)"
     )
 

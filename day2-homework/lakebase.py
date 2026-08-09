@@ -14,7 +14,6 @@ from contextlib import contextmanager
 import psycopg2
 from databricks.sdk import WorkspaceClient
 from psycopg2.extras import RealDictCursor
-from sqlalchemy import create_engine
 
 _w = WorkspaceClient()
 
@@ -23,9 +22,21 @@ _KEY = os.environ.get("LAKEBASE_SECRET_KEY", "lakebase-url")
 
 
 def _lakebase_url() -> str:
-    """Fetch and decode the Lakebase connection URL from the Databricks secret scope."""
+    """Fetch and decode the Lakebase connection URL from the Databricks secret scope.
+    
+    Supports LAKEBASE_DATABASE env var to override the database name in the URL.
+    """
     secret = _w.secrets.get_secret(scope=_SCOPE, key=_KEY)
-    return base64.b64decode(secret.value).decode("utf-8")
+    url = base64.b64decode(secret.value).decode("utf-8")
+    
+    # Allow database override via environment variable
+    db_override = os.environ.get("LAKEBASE_DATABASE")
+    if db_override:
+        # Replace the database name in the URL path
+        import re
+        url = re.sub(r'(/[^/?]+)(\?|$)', f'/{db_override}\\2', url)
+    
+    return url
 
 
 @contextmanager
@@ -40,6 +51,7 @@ def get_connection():
 
 def get_engine():
     """Return a SQLAlchemy engine for Lakebase."""
+    from sqlalchemy import create_engine
     return create_engine(_lakebase_url())
 
 

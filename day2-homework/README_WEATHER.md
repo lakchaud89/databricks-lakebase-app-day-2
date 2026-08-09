@@ -74,14 +74,32 @@ Extending `CITY_COORDS` or wiring in a real geocoder would remove this limitatio
 
 ## Running the pipeline end-to-end
 
+**Status: verified working end-to-end** against a live `weather-db` Lakebase instance — synced 4
+locations, embedded the resulting documents, and confirmed `/weather/search` returns real,
+semantically-ranked results.
+
 1. **Secrets** (once): run `python setup_secrets.py` from a Databricks notebook to store your
    Lakebase URL under secret scope `database_weather` (kept separate from the class reference
-   app's `database`/`database1` scope on purpose, per this assignment).
+   app's `database`/`database1` scope on purpose, per this assignment). Also grant the app itself
+   READ access: in the Databricks Apps UI, add an **App resource** of type Secret pointing at
+   scope `database_weather`, key `lakebase-url` — the scope-level ACL from `setup_secrets.py`
+   covers interactive/notebook use, but the deployed app runs under its own service principal and
+   needs this separate grant.
+   - If your Lakebase instance's default connection string points at a database name you don't
+     want (e.g. you created a dedicated `weather-db` database inside the instance rather than
+     using `databricks_postgres`), set the `LAKEBASE_DATABASE` env var (in `app.yaml` or your
+     notebook) to override just the database name in the stored URL, instead of re-storing a new
+     secret — see `lakebase.py`'s `_lakebase_url()`.
 2. **Schema** (once, in the Lakebase SQL editor):
    ```sql
    -- sql/05_setup_weather_documents_table.sql, then:
    -- sql/06_setup_weather_embeddings_table.sql
    ```
+   Run these authenticated as the *same* role your `database_weather` secret uses, not your
+   personal Databricks identity — see Troubleshooting below for why that matters. Simplest: skip
+   this step entirely and let `/weather/sync` / `/weather/search` create both tables on first call
+   (`app.py`'s `ensure_weather_documents_table()` / `ensure_weather_embeddings_table()` run the
+   same DDL as these files).
 3. **Harvest**:
    ```bash
    curl -X POST <APP_URL>/weather/sync \
@@ -105,6 +123,25 @@ Extending `CITY_COORDS` or wiring in a real geocoder would remove this limitatio
    Returns `{"query": "...", "top_k": 5, "results": [{"location", "headline", "source_type",
    "chunk_text", "similarity", ...}]}`. `top_k` is clamped to 1–20. Also usable from the UI
    at `<APP_URL>/` (the "🌦️ Search Weather" card).
+
+## Troubleshooting notes (issues actually hit while building this)
+
+- **`Error: must be owner of table weather_documents`** — happens when the tables were created
+  under one Postgres role (e.g. your personal Databricks identity, if you ran `sql/05`/`sql/06`
+  from a browser SQL editor that authenticates as you) but the app connects as a *different* role
+  (whatever's embedded in the `database_weather` secret's connection URL). Postgres requires you
+  to be the table owner to run `CREATE INDEX`/`ALTER TABLE`, which `ensure_weather_documents_table()`
+  does on every request. Fix: either `DROP TABLE` and let the app recreate them under its own
+  connection (simplest), or `ALTER TABLE weather_documents OWNER TO <app_role>;` /
+  `ALTER TABLE weather_embeddings OWNER TO <app_role>;`.
+- **`ModuleNotFoundError: No module named 'sqlalchemy'`** (and similarly for
+  `sentence-transformers`) when running `notebooks/ingest_weather_embeddings.py` directly from a
+  notebook/cluster — `requirements.txt` is only auto-installed by the *deployed Databricks App*,
+  not by whatever compute you attach an ad-hoc notebook to. `lakebase.py` now imports `sqlalchemy`
+  lazily inside `get_engine()` (nothing in this pipeline calls it) so a bare `import lakebase`
+  doesn't need it installed at all; `sentence-transformers` is a genuine runtime dependency of the
+  ingestion script and the search endpoint, so it must actually be installed wherever you run
+  either one (`%pip install -r requirements.txt` in the notebook if it's missing).
 
 ## Known limitations / things to improve given more time
 

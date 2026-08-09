@@ -17,7 +17,7 @@ import getpass
 
 w = WorkspaceClient()
 
-# w.secrets.create_scope(scope="database_weather")
+#w.secrets.create_scope(scope="database_weather")
 w.secrets.put_secret(
     scope="database_weather",
     key="lakebase-url",
@@ -29,3 +29,4 @@ w.secrets.put_acl(
     principal="users",
     permission=workspace.AclPermission.READ,
 )
+
